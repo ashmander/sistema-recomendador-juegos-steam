@@ -56,7 +56,7 @@ cd <carpeta-del-repo>
 
 # Crear entorno virtual e instalar dependencias
 uv venv --python 3.11
-uv pip install -r requirements.txt
+uv sync
 ```
 
 ### Generar los artefactos del modelo

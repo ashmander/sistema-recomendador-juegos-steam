@@ -21,21 +21,21 @@ por Julian McAuley (UCSD).
 
 ### Publicaciones asociadas
 
-- Pablo Castells, Saúl Vargas & Jun Wang. *Novelty and Diversity Metrics for
-  Recommender Systems: Choice, Discovery and Relevance.* DDR @ ECIR 2011.
-- Mengting Wan & Julian McAuley. *Item Recommendation on Monotonic Behavior
-  Chains.* RecSys 2018.
-- Apurva Pathak, Kshitiz Gupta & Julian McAuley. *Generating and Personalizing
-  Bundle Recommendations on Steam.* SIGIR 2017.
+- Pablo Castells, Saúl Vargas & Jun Wang. _Novelty and Diversity Metrics for
+  Recommender Systems: Choice, Discovery and Relevance._ DDR @ ECIR 2011.
+- Mengting Wan & Julian McAuley. _Item Recommendation on Monotonic Behavior
+  Chains._ RecSys 2018.
+- Apurva Pathak, Kshitiz Gupta & Julian McAuley. _Generating and Personalizing
+  Bundle Recommendations on Steam._ SIGIR 2017.
 
 ### Otras referencias técnicas
 
-- Salton, G., & Buckley, C. (1988). *Term-weighting approaches in automatic
-  text retrieval.* Information Processing & Management, 24(5), 513–523.
-- Lops, P., De Gemmis, M., & Semeraro, G. (2011). *Content-based recommender
-  systems: State of the art and trends.* Recommender Systems Handbook, 73–105.
-- Carbonell, J., & Goldstein, J. (1998). *The use of MMR, diversity-based
-  reranking for reordering documents and producing summaries.* SIGIR, 335–336.
+- Salton, G., & Buckley, C. (1988). _Term-weighting approaches in automatic
+  text retrieval._ Information Processing & Management, 24(5), 513–523.
+- Lops, P., De Gemmis, M., & Semeraro, G. (2011). _Content-based recommender
+  systems: State of the art and trends._ Recommender Systems Handbook, 73–105.
+- Carbonell, J., & Goldstein, J. (1998). _The use of MMR, diversity-based
+  reranking for reordering documents and producing summaries._ SIGIR, 335–336.
 
 ---
 
@@ -82,30 +82,349 @@ ejecutar las celdas seleccionando el intérprete del entorno virtual del proyect
 
 Los notebooks a ejecutar son:
 
-1. `sistema_recomendacion.ipynb` (versión 1, baseline) — *opcional*, sirve
+1. `sistema_recomendacion.ipynb` (versión 1, baseline) — _opcional_, sirve
    como referencia del proceso evolutivo del modelo.
-3. `sistema_recomendacion_v2.ipynb` (versión 2, modelo final) — **requerido**
+2. `sistema_recomendacion_v2.ipynb` (versión 2, modelo final) — **requerido**
    para generar los artefactos que consume la API.
 
 Al finalizar la ejecución se crea la carpeta `artifacts/` con los siguientes archivos:
 
-| Artefacto | Descripción |
-|-----------|-------------|
-| `matriz_tfidf.npz` | Matriz dispersa de juegos × vocabulario (TF-IDF). |
-| `catalogo.parquet` | Catálogo de juegos modelables. |
-| `usuarios.parquet` | Bibliotecas de usuarios en formato long. |
-| `popularidad.parquet` | Ranking precomputado de popularidad. |
-| `indice_por_genero.pkl` | Diccionario `{género: [item_ids]}` para estratificación. |
-| `vectorizer.pkl` | Vectorizador entrenado (necesario para cold-start textual). |
+| Artefacto               | Descripción                                                 |
+| ----------------------- | ----------------------------------------------------------- |
+| `matriz_tfidf.npz`      | Matriz dispersa de juegos × vocabulario (TF-IDF).           |
+| `catalogo.parquet`      | Catálogo de juegos modelables.                              |
+| `usuarios.parquet`      | Bibliotecas de usuarios en formato long.                    |
+| `popularidad.parquet`   | Ranking precomputado de popularidad.                        |
+| `indice_por_genero.pkl` | Diccionario `{género: [item_ids]}` para estratificación.    |
+| `vectorizer.pkl`        | Vectorizador entrenado (necesario para cold-start textual). |
 
-### Levantar la API
+### Levantar la API y la aplicación web
 
 ```bash
-uv run uvicorn main:app --reload
+uv run uvicorn main:app --reload --reload-dir src --reload-include "main.py"
 ```
 
-La API queda disponible en `http://localhost:8000`. La documentación
-interactiva (Swagger UI) se abre en `http://localhost:8000/docs`.
+> **Nota sobre `--reload`:** Se recomienda limitar el watcher a `src/` y
+> `main.py` para evitar que los archivos estáticos del frontend provoquen
+> reinicios constantes del servidor durante el desarrollo.
+
+Al ejecutar el comando anterior, el servidor carga en memoria los artefactos
+precomputados (~70K usuarios, ~2K juegos modelables, 22 géneros). Este proceso
+toma unos segundos la primera vez. Una vez que se muestra el mensaje
+`Artefactos cargados. API lista.`, todo está disponible:
+
+| Recurso            | URL                                                        | Descripción                                          |
+| ------------------ | ---------------------------------------------------------- | ---------------------------------------------------- |
+| **API REST**       | [`http://localhost:8000`](http://localhost:8000)           | Raíz de la API — devuelve JSON con stats del sistema |
+| **Swagger UI**     | [`http://localhost:8000/docs`](http://localhost:8000/docs) | Documentación interactiva de todos los endpoints     |
+| **Aplicación Web** | [`http://localhost:8000/app/`](http://localhost:8000/app/) | Frontend completo del sistema recomendador           |
+
+La aplicación web se sirve como archivos estáticos montados en la ruta `/app/`
+del mismo servidor FastAPI. No requiere un servidor adicional ni proceso de
+build: al abrir `http://localhost:8000/app/` en el navegador, todo funciona
+directamente.
+
+---
+
+## ☁️ Despliegue en Hugging Face Spaces (gratuito)
+
+La aplicación se puede desplegar de forma gratuita en
+[Hugging Face Spaces](https://huggingface.co/spaces) usando Docker. El tier
+gratuito ofrece **2 vCPU y 16 GB de RAM**, suficiente para este proyecto. Solo
+se necesitan los artefactos pre-computados (~31 MB), el código fuente y el
+frontend — la carpeta `data/` (117 MB) **no se requiere** en producción.
+
+> **Nota:** El Space gratuito entra en modo _sleep_ tras ~48 horas de
+> inactividad. Se despierta automáticamente cuando alguien accede, pero tarda
+> ~1-2 minutos en arrancar. Si se necesita mostrar la app en un momento
+> específico, conviene acceder antes para "despertarla".
+
+### Requisitos previos
+
+- Cuenta en [Hugging Face](https://huggingface.co/join) (gratuita, sin tarjeta
+  de crédito).
+- [git-lfs](https://git-lfs.github.com/) instalado (los artefactos superan los
+  10 MB que Git estándar permite en HF). En Ubuntu/Debian:
+  ```bash
+  sudo apt install git-lfs
+  git lfs install
+  ```
+- Un **token de acceso** con permisos de escritura, generado desde
+  [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+
+### Paso 1 — Crear el Space en Hugging Face
+
+1. Ir a [huggingface.co/new-space](https://huggingface.co/new-space).
+2. Completar el formulario:
+   - **Owner:** tu usuario de Hugging Face.
+   - **Space name:** nombre deseado (ej: `SistemaRecomendador`).
+   - **SDK:** Docker.
+   - **Visibility:** Public.
+   - **Hardware:** CPU basic (Free).
+3. Click en **Create Space**.
+
+### Paso 2 — Ejecutar el script de despliegue
+
+Desde la raíz del proyecto, ejecutar:
+
+```bash
+./deploy/deploy_to_hf.sh <TU_USUARIO_HF> <NOMBRE_DEL_SPACE>
+```
+
+Por ejemplo:
+
+```bash
+./deploy/deploy_to_hf.sh wills777 SistemaRecomendador
+```
+
+El script automáticamente:
+
+1. Clona el repositorio vacío del Space.
+2. Configura Git LFS para los archivos pesados (`.parquet`, `.npz`, `.pkl`).
+3. Copia **solo los archivos necesarios** desde tu máquina local (no depende de
+   GitHub):
+   - `Dockerfile`, `pyproject.toml`, `uv.lock`, `main.py`
+   - `src/` (código fuente, sin `__pycache__/`)
+   - `artifacts/` (~31 MB de artefactos pre-computados)
+   - `frontend/` (HTML + JS)
+   - `README.md` y `.dockerignore` adaptados para HF Spaces (desde `deploy/`)
+4. Hace commit y push al Space.
+
+Al hacer push pedirá credenciales:
+- **Username:** tu usuario de Hugging Face.
+- **Password:** el token de acceso con permisos de escritura.
+
+### Paso 3 — Verificar el despliegue
+
+Una vez completado el push, Hugging Face construye la imagen Docker
+automáticamente (~3-5 minutos). El progreso se puede monitorear en la pestaña
+**Logs** del Space.
+
+Cuando el build termine, la aplicación estará disponible en:
+
+| Recurso            | URL                                                                    |
+| ------------------ | ---------------------------------------------------------------------- |
+| **Aplicación Web** | `https://<USUARIO>-<SPACE>.hf.space/app/`                              |
+| **Swagger UI**     | `https://<USUARIO>-<SPACE>.hf.space/docs`                              |
+| **API REST**       | `https://<USUARIO>-<SPACE>.hf.space/`                                  |
+| **Panel del Space**| `https://huggingface.co/spaces/<USUARIO>/<SPACE>`                      |
+
+### Estructura del directorio `deploy/`
+
+```
+deploy/
+├── deploy_to_hf.sh   # Script automatizado de despliegue
+├── README.md          # README con frontmatter YAML requerido por HF Spaces
+└── .dockerignore      # Excluye data/, notebooks, .git, .venv del build Docker
+```
+
+---
+
+## 🌐 Aplicación Web
+
+La aplicación web es un frontend multi-página construido con **HTML, JavaScript
+vanilla (módulos ES6) y Tailwind CSS (CDN)**. Consume directamente la API REST
+para demostrar todas las capacidades del sistema recomendador de forma visual
+e interactiva.
+
+### Características generales
+
+- **5 páginas** independientes con navegación compartida.
+- **Sin frameworks** (React, Vue, etc.) ni herramientas de build (Vite, Webpack).
+- **Diseño responsive** con Tailwind CSS — se adapta de 1 a 4 columnas.
+- **Tema oscuro** estilo Steam (fondo gris oscuro, acentos en índigo).
+- **Manejo de estados**: indicadores de carga (spinner animado), mensajes de
+  error amigables y estados vacíos.
+- **Modular**: lógica separada por página (`js/index.js`, `js/usuario.js`, etc.)
+  con un cliente HTTP compartido (`js/api.js`) y componentes reutilizables
+  (`js/components.js`).
+
+### Páginas de la aplicación
+
+#### 1. Inicio (`/app/`)
+
+Página principal que presenta el sistema y proporciona acceso rápido a todos
+los flujos.
+
+**Contenido:**
+
+- **Hero** con título y descripción del enfoque técnico (TF-IDF + similitud
+  de coseno sobre metadatos de juegos).
+- **3 tarjetas de estadísticas** cargadas dinámicamente desde el endpoint
+  `GET /`:
+  - Número de juegos modelables en el catálogo.
+  - Número de usuarios indexados.
+  - Número de géneros disponibles.
+- **4 tarjetas de navegación** con ícono, título y descripción de cada flujo:
+  - 👤 **Mi Perfil** → recomendaciones para usuario existente.
+  - 🆕 **Nuevo Usuario** → onboarding con selección de juegos (cold-start).
+  - 🔍 **Explorar por Género** → catálogo estratificado.
+  - 🎯 **Buscar Juego Similar** → búsqueda por `item_id`.
+- **Panel técnico** con resumen del enfoque: vectorización, pesos de features,
+  diferencias v1 vs v2 y fuente del dataset.
+
+**Endpoints consumidos:** `GET /`
+
+---
+
+#### 2. Mi Perfil — Recomendaciones Personalizadas (`/app/usuario.html`)
+
+Flujo para **usuarios existentes** que ya tienen historial de juegos en el
+sistema. Muestra las recomendaciones de ambas versiones del modelo (v1 y v2)
+lado a lado para evaluación cualitativa.
+
+**Contenido:**
+
+- **Campo de texto** para ingresar un `user_id`.
+- **Chips de ejemplo** con 3 `user_id` reales del dataset (clickeables,
+  autorellenan el campo al hacer clic): `76561198084279738`, `evcentric`,
+  `js41637`.
+- **Botón "Recomendar"** que dispara la consulta.
+- **Layout de 2 columnas** con los resultados:
+  - **Columna izquierda — v1 (Baseline):** muestra el juego semilla (el de
+    mayor `playtime_forever`) y las 10 recomendaciones generadas a partir de
+    ese único juego. No aplica filtro anti-DLC.
+  - **Columna derecha — v2 (Mejorado):** muestra el juego dominante, el
+    número de juegos usados para construir el perfil (centroide ponderado) y
+    las 10 recomendaciones con filtro anti-DLC aplicado.
+- **Manejo de cold-start:** si el usuario no tiene juegos modelables en v2,
+  se muestra un aviso con enlace directo a la página de Nuevo Usuario.
+- **Manejo de errores:** si el `user_id` no existe, se muestra un mensaje
+  descriptivo.
+
+**Endpoints consumidos:** `GET /comparar/usuario/{user_id}?top_n=10`
+
+---
+
+#### 3. Nuevo Usuario — Cold-Start con Selección de Juegos (`/app/nuevo-usuario.html`)
+
+Flujo para **usuarios nuevos** sin historial. Implementa la estrategia de
+cold-start basada en selección múltiple de juegos favoritos.
+
+**Flujo de la página:**
+
+1. **Carga automática de juegos variados.** Al abrir la página se llama al
+   endpoint de estratificación con `k_por_genero=1`, que devuelve 1 juego
+   popular de cada uno de los 22 géneros disponibles. Esto garantiza que el
+   usuario vea opciones diversas (no solo juegos del género dominante).
+
+2. **Selección interactiva.** Los juegos se muestran como una grilla de
+   tarjetas seleccionables. El usuario hace clic para marcar/desmarcar:
+   - **Contador visible:** muestra `"X de 5 seleccionados"` en tiempo real.
+   - **Límite de 5:** al llegar a 5 selecciones, no se puede agregar más
+     (las tarjetas no seleccionadas ignoran clics adicionales).
+   - **Feedback visual:** las tarjetas seleccionadas tienen borde y anillo
+     de color índigo.
+
+3. **Botón "Obtener Recomendaciones"** (habilitado con al menos 1
+   selección). Al hacer clic:
+   - Se envía un `POST /v2/cold-start/favoritos` con los `item_ids`
+     seleccionados.
+   - El backend calcula el **centroide** (promedio) de los vectores TF-IDF
+     de los juegos seleccionados y devuelve los 10 más similares, excluyendo
+     los ya seleccionados y aplicando filtro anti-DLC.
+
+4. **Resultados:** se muestran los juegos de referencia (los que el usuario
+   eligió) como badges y debajo la grilla de 10 recomendaciones con su
+   porcentaje de similitud y enlace "Ver similares →" a la página de Buscar
+   Juego.
+
+5. **Botón "Volver a Elegir"** reinicia la selección para probar con otros
+   juegos.
+
+**Endpoints consumidos:**
+
+- `GET /v2/explorar/estratificado?k_por_genero=1` (carga inicial)
+- `POST /v2/cold-start/favoritos` (al recomendar)
+
+---
+
+#### 4. Explorar por Género (`/app/explorar.html`)
+
+Flujo de **descubrimiento** que resuelve el problema de sesgo de popularidad
+mostrando juegos balanceados por género.
+
+**Contenido:**
+
+- **Chips de géneros** cargados dinámicamente (22 géneros). Cada chip es un
+  toggle: clic para seleccionar/deseleccionar. Los seleccionados se resaltan
+  en índigo. Si no se selecciona ninguno, se muestran todos los géneros.
+- **Selector de cantidad** (`k_por_genero`): dropdown con opciones 1, 2, 3,
+  5, 10 juegos por género. Valor por defecto: 3.
+- **Botón "Explorar"** que dispara la consulta.
+- **Resultados agrupados por género:** cada género tiene su propio heading
+  con el nombre (capitalizado) y número de juegos, seguido de una grilla de
+  tarjetas. Cada tarjeta muestra nombre, `item_id` y un enlace **"Ver
+  similares →"** que navega a `/app/juego.html?id=XXXX`.
+- **Auto-exploración:** al cargar la página se ejecuta automáticamente una
+  primera consulta con los valores por defecto.
+
+**Endpoints consumidos:**
+
+- `GET /v2/explorar/estratificado?k_por_genero=N&generos=...`
+
+---
+
+#### 5. Buscar Juegos Similares (`/app/juego.html`)
+
+Flujo de **búsqueda directa** por `item_id`. Útil para explorar el vecindario
+de un juego específico en el espacio TF-IDF.
+
+**Contenido:**
+
+- **Campo de texto** para ingresar un `item_id` con placeholder
+  `"item_id (ej: 10, 400, 730)"`.
+- **Soporte de query params:** si la URL incluye `?id=XXXX` (por ejemplo,
+  al hacer clic en "Ver similares →" desde Explorar o Nuevo Usuario), el
+  campo se autocompleta y la búsqueda se ejecuta automáticamente al cargar.
+- **Botón "Buscar Similares"** que dispara la consulta manualmente.
+- **Resultados:**
+  - Panel superior con el **juego base** (nombre e ID).
+  - Grilla de 10 juegos similares con porcentaje de similitud.
+  - Cada tarjeta tiene un enlace **"Ver similares →"** que permite navegar
+    recursivamente entre juegos similares.
+- **Manejo de errores:** si el `item_id` no existe en el catálogo, se muestra
+  un mensaje descriptivo.
+
+**Endpoints consumidos:** `GET /v2/recomendacion/juego/{item_id}?top_n=10`
+
+---
+
+### Estructura del frontend
+
+```
+frontend/
+├── index.html            # Página de inicio (landing + stats + navegación)
+├── usuario.html          # Recomendaciones personalizadas (comparación v1 vs v2)
+├── nuevo-usuario.html    # Cold-start con selección múltiple de juegos
+├── explorar.html         # Exploración estratificada por género
+├── juego.html            # Búsqueda de juegos similares por item_id
+└── js/
+    ├── api.js            # Cliente HTTP compartido (wrapper de fetch)
+    ├── components.js     # Componentes UI reutilizables (navbar, tarjetas, loading)
+    ├── index.js          # Lógica de index.html
+    ├── usuario.js        # Lógica de usuario.html
+    ├── nuevo-usuario.js  # Lógica de nuevo-usuario.html
+    ├── explorar.js       # Lógica de explorar.html
+    └── juego.js          # Lógica de juego.html
+```
+
+**`api.js`** — Cliente HTTP centralizado con una función por endpoint. Maneja
+errores HTTP y parseo JSON. Todas las funciones devuelven Promises.
+
+**`components.js`** — Componentes de UI compartidos entre páginas:
+
+- `renderNavbar(paginaActiva)` — Barra de navegación con 5 links y resaltado
+  de la página activa.
+- `gameCard(juego, opciones)` — Tarjeta de juego estándar (nombre, ID, score
+  de similitud, link opcional "Ver similares →").
+- `selectableGameCard(juego, selected)` — Variante seleccionable con toggle
+  visual para el flujo de cold-start.
+- `gameGrid(juegos, opciones)` — Grid responsive de tarjetas (1-4 columnas).
+- `showLoading(container)` — Spinner animado de carga.
+- `showError(container, mensaje)` — Mensaje de error en panel rojo.
+
+---
 
 ### Endpoints disponibles
 
@@ -132,6 +451,10 @@ interactiva (Swagger UI) se abre en `http://localhost:8000/docs`.
   intereses descritos en texto libre (ej: `?intereses=action shooter multiplayer`).
 - `GET /v2/cold-start/favorito/{item_id}` — Recomendación a partir de un juego
   de referencia que al usuario le guste.
+- `POST /v2/cold-start/favoritos` — Recomendación a partir de hasta 5 juegos
+  favoritos. Recibe JSON `{"item_ids": ["10","400","730"], "top_n": 10}`.
+  Calcula el centroide (promedio) de los vectores TF-IDF de los juegos
+  seleccionados y devuelve los más similares al perfil resultante.
 
 #### Versión 2 — Exploración
 
@@ -165,33 +488,33 @@ los juegos del catálogo.
 
 ### Por qué este enfoque
 
-| Criterio | Justificación |
-|----------|--------------|
+| Criterio                | Justificación                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Disponibilidad de datos | El catálogo tiene metadatos densos para casi todos los juegos. No dependemos de la densidad de interacciones usuario-ítem. |
-| Naturaleza de los ítems | Los videojuegos se definen bien por sus géneros y etiquetas. |
-| Escalabilidad | Operación O(N·V) por consulta. No requiere GPU ni entrenamiento iterativo. |
-| Interpretabilidad | Cada recomendación se explica por los tokens compartidos. |
-| Cold-start de ítems | Un juego nuevo con metadatos puede recomendarse de inmediato. |
+| Naturaleza de los ítems | Los videojuegos se definen bien por sus géneros y etiquetas.                                                               |
+| Escalabilidad           | Operación O(N·V) por consulta. No requiere GPU ni entrenamiento iterativo.                                                 |
+| Interpretabilidad       | Cada recomendación se explica por los tokens compartidos.                                                                  |
+| Cold-start de ítems     | Un juego nuevo con metadatos puede recomendarse de inmediato.                                                              |
 
 ### Estrategias descartadas
 
-| Estrategia | Razón |
-|-----------|-------|
-| Filtrado colaborativo puro | Matriz usuario-ítem extremadamente dispersa. |
-| Factorización de matrices (SVD/ALS) | Requiere optimización iterativa. Documentado como mejora futura. |
-| Neural Collaborative Filtering | Complejidad innecesaria para un prototipo; menor interpretabilidad. |
-| Basado en conocimiento | No hay reglas de dominio explícitas en el dataset. |
-| Basado en contexto | No hay datos contextuales (ubicación, hora, dispositivo). |
+| Estrategia                          | Razón                                                               |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| Filtrado colaborativo puro          | Matriz usuario-ítem extremadamente dispersa.                        |
+| Factorización de matrices (SVD/ALS) | Requiere optimización iterativa. Documentado como mejora futura.    |
+| Neural Collaborative Filtering      | Complejidad innecesaria para un prototipo; menor interpretabilidad. |
+| Basado en conocimiento              | No hay reglas de dominio explícitas en el dataset.                  |
+| Basado en contexto                  | No hay datos contextuales (ubicación, hora, dispositivo).           |
 
 ### Evolución del modelo: V1 → V2
 
-| Componente | V1 (baseline) | V2 (mejorado) |
-|------------|--------------|---------------|
-| Perfil del usuario | Un único juego (max playtime) | Centroide ponderado por log(playtime) sobre toda la biblioteca |
-| Diversidad del top-N | Sin filtros (saturado de DLCs) | Filtro anti-DLC (Nivel 1: nombre incluye semilla; Nivel 3: palabras-DLC) |
-| Cold-start | No soportado (HTTP 404) | 3 estrategias: popularidad, intereses textuales, juego favorito |
-| Exploración | No existe | Listado estratificado por género |
-| Performance API | Filtros lineales O(N) por request | Pre-indexación de bibliotecas O(1) |
+| Componente           | V1 (baseline)                     | V2 (mejorado)                                                            |
+| -------------------- | --------------------------------- | ------------------------------------------------------------------------ |
+| Perfil del usuario   | Un único juego (max playtime)     | Centroide ponderado por log(playtime) sobre toda la biblioteca           |
+| Diversidad del top-N | Sin filtros (saturado de DLCs)    | Filtro anti-DLC (Nivel 1: nombre incluye semilla; Nivel 3: palabras-DLC) |
+| Cold-start           | No soportado (HTTP 404)           | 3 estrategias: popularidad, intereses textuales, juego favorito          |
+| Exploración          | No existe                         | Listado estratificado por género                                         |
+| Performance API      | Filtros lineales O(N) por request | Pre-indexación de bibliotecas O(1)                                       |
 
 ### Análisis empírico de features
 
@@ -208,10 +531,12 @@ documentado en la sección 3.5 del notebook v1.
 
 ```mermaid
 flowchart TD
+    WebApp[Aplicación Web<br/>/app/]
     Cliente[Cliente / Swagger UI]
 
     subgraph API[FastAPI - main.py]
         direction TB
+        Static[Archivos Estáticos<br/>/app/]
         Router{Router de endpoints}
 
         subgraph V1[V1 - Baseline]
@@ -228,6 +553,7 @@ flowchart TD
             CSP[/v2/cold-start/popularidad/]
             CSI[/v2/cold-start/intereses/]
             CSF[/v2/cold-start/favorito/]
+            CSFM[POST /v2/cold-start/favoritos/]
         end
 
         subgraph EX[Exploración]
@@ -258,7 +584,9 @@ flowchart TD
         IndiceBib[indice_bibliotecas<br/>pre-indexado en RAM]
     end
 
-    Cliente -->|HTTP GET| Router
+    Cliente -->|HTTP GET/POST| Router
+    WebApp -->|fetch()| Router
+    WebApp --> Static
     Router --> V1
     Router --> V2
     Router --> CS
@@ -273,6 +601,7 @@ flowchart TD
     CSP --> Pop
     CSI --> Vec --> Motor --> Filtro
     CSF --> Motor --> Filtro
+    CSFM --> Motor --> Filtro
 
     EST --> Estrat
     CMP --> Semilla
@@ -350,6 +679,7 @@ y de nicho. Sigue una distribución **Long Tail** clásica donde el top 20% de
 juegos acumula la gran mayoría de las interacciones.
 
 **Mitigaciones aplicadas:**
+
 - En lugar de un único endpoint global de popularidad, se ofrece el endpoint
   `/v2/explorar/estratificado` que toma K juegos por género — esto rompe el
   sesgo dando visibilidad a juegos populares dentro de cada nicho.
@@ -357,6 +687,7 @@ juegos acumula la gran mayoría de las interacciones.
   contenido derivado del juego más popular.
 
 **Mitigaciones futuras:**
+
 - Re-ranking con MMR (Maximal Marginal Relevance) para balancear relevancia y
   diversidad.
 - Estrategia ε-greedy: recomendar ocasionalmente juegos aleatorios para
@@ -375,6 +706,7 @@ sesgo geográfico y cultural relevante:
 - Las reviews están sesgadas hacia el inglés.
 
 **Mitigaciones futuras:**
+
 - Complementar con datasets de otras regiones disponibles en el repositorio
   de McAuley.
 - Incluir el dataset `steam_new` con reviews de usuarios más diversos
@@ -392,16 +724,18 @@ visibilidad en la tienda (destacados, ofertas, marketing).
 Se usa `playtime_forever` como señal de preferencia, pero un playtime alto no
 siempre indica gusto:
 
-- Juegos con mecánicas *idle* o *AFK farming* generan playtime artificial.
+- Juegos con mecánicas _idle_ o _AFK farming_ generan playtime artificial.
 - Juegos comprados y abandonados quedan registrados con `playtime > 0`.
 - No se distingue tiempo activo de tiempo en segundo plano.
 
 **Mitigaciones aplicadas:**
+
 - Suavizado logarítmico `log(1 + playtime)` en el centroide de v2: atenúa el
   peso desproporcionado de outliers (10000h vs 100h pasa de ser 100× más
   importante a ~2× más).
 
 **Mitigaciones futuras:**
+
 - Combinar `playtime_forever` con la columna `recommend` del dataset de
   reviews para descartar juegos que el usuario marcó negativamente.
 - Establecer umbral mínimo de playtime para considerar una interacción
@@ -423,6 +757,7 @@ similitud >0.9 con cualquier otro juego de tags igualmente genéricos, sin
 capturar afinidades temáticas reales.
 
 **Mitigaciones futuras:**
+
 - Imponer un umbral mínimo de "especificidad" (número de tags con IDF alto)
   para considerar un juego modelable.
 - Enriquecer metadatos pobres mediante scraping adicional de descripciones de
@@ -435,7 +770,8 @@ capturar afinidades temáticas reales.
 ```
 proyecto/
 ├── README.md
-├── requirements.txt
+├── pyproject.toml
+├── Dockerfile                           # Build Docker (compatible con HF Spaces)
 ├── main.py                              # API FastAPI (v1 + v2 unificados)
 ├── sistema_recomendacion.ipynb          # Notebook v1 (baseline)
 ├── sistema_recomendacion_v2.ipynb       # Notebook v2 (modelo mejorado)
@@ -452,6 +788,26 @@ proyecto/
 │   ├── indice_por_genero.pkl
 │   └── vectorizer.pkl
 │
+├── deploy/                              # Despliegue en Hugging Face Spaces
+│   ├── deploy_to_hf.sh                 # Script automatizado de despliegue
+│   ├── README.md                        # README con frontmatter YAML para HF
+│   └── .dockerignore                    # Exclusiones para el build en HF
+│
+├── frontend/                            # Aplicación web (archivos estáticos)
+│   ├── index.html                       # Landing page + stats + navegación
+│   ├── usuario.html                     # Comparación v1 vs v2 por usuario
+│   ├── nuevo-usuario.html               # Cold-start: selección de juegos
+│   ├── explorar.html                    # Exploración estratificada por género
+│   ├── juego.html                       # Búsqueda de juegos similares
+│   └── js/
+│       ├── api.js                       # Cliente HTTP compartido
+│       ├── components.js                # Componentes UI reutilizables
+│       ├── index.js                     # Lógica de landing
+│       ├── usuario.js                   # Lógica de comparación v1 vs v2
+│       ├── nuevo-usuario.js             # Lógica de cold-start
+│       ├── explorar.js                  # Lógica de exploración por género
+│       └── juego.js                     # Lógica de búsqueda por item_id
+│
 └── src/
     └── utils/
         ├── __init__.py
@@ -462,7 +818,7 @@ proyecto/
         ├── perfil_usuario.py            # Centroide ponderado v2
         ├── motor_v2.py                  # Motor v2
         ├── filtros.py                   # Anti-DLC
-        ├── cold_start.py                # 3 estrategias de cold-start
+        ├── cold_start.py               # 3 estrategias de cold-start
         └── estratificacion.py           # Listado por género
 ```
 
@@ -470,11 +826,11 @@ proyecto/
 
 ## 🔮 Trabajo futuro
 
-| Mejora | Descripción | Complejidad |
-|--------|-------------|-------------|
-| MMR (Maximal Marginal Relevance) | Re-ranking que balancea relevancia con diversidad. | Baja |
-| Hybrid model | Combinar content-based con collaborative filtering (matriz de co-ocurrencia o ALS). | Media |
-| Análisis de sentimiento | Procesar el texto de reviews para ajustar pesos del centroide más allá del booleano `recommend`. | Media-Alta |
-| Recency con `playtime_2weeks` | Doble vector perfil: gusto histórico vs gusto actual. | Baja |
-| Embeddings semánticos | Sustituir TF-IDF por embeddings de descripciones (sentence-transformers). | Alta |
-| Neural Collaborative Filtering | Modelo de deep learning para capturar interacciones no lineales usuario-juego. | Alta |
+| Mejora                           | Descripción                                                                                      | Complejidad |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ | ----------- |
+| MMR (Maximal Marginal Relevance) | Re-ranking que balancea relevancia con diversidad.                                               | Baja        |
+| Hybrid model                     | Combinar content-based con collaborative filtering (matriz de co-ocurrencia o ALS).              | Media       |
+| Análisis de sentimiento          | Procesar el texto de reviews para ajustar pesos del centroide más allá del booleano `recommend`. | Media-Alta  |
+| Recency con `playtime_2weeks`    | Doble vector perfil: gusto histórico vs gusto actual.                                            | Baja        |
+| Embeddings semánticos            | Sustituir TF-IDF por embeddings de descripciones (sentence-transformers).                        | Alta        |
+| Neural Collaborative Filtering   | Modelo de deep learning para capturar interacciones no lineales usuario-juego.                   | Alta        |

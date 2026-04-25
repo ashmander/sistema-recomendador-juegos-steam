@@ -1,0 +1,9 @@
+data/
+*.ipynb
+.git/
+.gitignore
+__pycache__/
+*.pyc
+deploy/
+LICENSE
+.venv/

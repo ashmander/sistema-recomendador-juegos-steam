@@ -20,6 +20,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from scipy import sparse
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -34,8 +36,13 @@ from src.utils.cold_start import (
     recomendar_por_popularidad,
 )
 from src.utils.estratificacion import listar_juegos_estratificados
-from src.utils.motor_v2 import recomendar_por_usuario_v2
+from src.utils.motor_v2 import recomendar_desde_vector, recomendar_por_usuario_v2
 from src.utils.perfil_usuario import construir_indice_bibliotecas
+
+
+class FavoritosRequest(BaseModel):
+    item_ids: list[str] = Field(..., min_length=1, max_length=5)
+    top_n: int = Field(10, ge=1, le=50)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -65,7 +72,9 @@ df_usuarios["item_id"] = df_usuarios["item_id"].astype(str)
 # Índices de búsqueda rápida
 id_to_idx = pd.Series(df_catalogo.index.values, index=df_catalogo["id"]).to_dict()
 idx_to_id = {v: k for k, v in id_to_idx.items()}
-id_to_nombre = pd.Series(df_catalogo["nombre"].values, index=df_catalogo["id"]).to_dict()
+id_to_nombre = pd.Series(
+    df_catalogo["nombre"].values, index=df_catalogo["id"]
+).to_dict()
 
 # Pre-indexación de bibliotecas (mejora de rendimiento, usado por v2)
 indice_bibliotecas = construir_indice_bibliotecas(df_usuarios)
@@ -111,6 +120,7 @@ def root():
             "cold_start_popularidad": "/v2/cold-start/popularidad",
             "cold_start_intereses": "/v2/cold-start/intereses?intereses=...",
             "cold_start_favorito": "/v2/cold-start/favorito/{item_id}",
+            "cold_start_favoritos": "POST /v2/cold-start/favoritos",
             "estratificado": "/v2/explorar/estratificado",
         },
     }
@@ -128,7 +138,9 @@ def v1_recomendar_usuario(user_id: str, top_n: int = Query(5, ge=1, le=50)):
     """
     semilla = obtener_semilla_v1(user_id, df_usuarios, id_to_idx, id_to_nombre)
     if semilla is None:
-        raise HTTPException(404, f"Usuario '{user_id}' sin juegos modelables en catálogo.")
+        raise HTTPException(
+            404, f"Usuario '{user_id}' sin juegos modelables en catálogo."
+        )
 
     biblioteca_ids = set(
         df_usuarios.loc[df_usuarios["user_id"] == user_id, "item_id"].tolist()
@@ -231,7 +243,11 @@ def v2_recomendar_juego(item_id: str, top_n: int = Query(5, ge=1, le=50)):
 def v2_cold_start_popularidad(top_n: int = Query(10, ge=1, le=50)):
     """[v2 cold-start] Top-N juegos más populares (medido por nº de jugadores únicos)."""
     recs = recomendar_por_popularidad(df_popularidad, top_n=top_n)
-    return {"version": "v2", "estrategia": "popularidad_global", "recomendaciones": recs}
+    return {
+        "version": "v2",
+        "estrategia": "popularidad_global",
+        "recomendaciones": recs,
+    }
 
 
 @app.get("/v2/cold-start/intereses", tags=["v2 — cold start"])
@@ -290,7 +306,10 @@ def v2_cold_start_favorito(item_id: str, top_n: int = Query(5, ge=1, le=50)):
     return {
         "version": "v2",
         "estrategia": "juego_favorito",
-        "juego_referencia": {"item_id": item_id, "nombre": id_to_nombre.get(item_id, "")},
+        "juego_referencia": {
+            "item_id": item_id,
+            "nombre": id_to_nombre.get(item_id, ""),
+        },
         "recomendaciones": recs,
     }
 
@@ -365,3 +384,56 @@ def comparar_versiones(user_id: str, top_n: int = Query(5, ge=1, le=20)):
     )
 
     return {"user_id": user_id, "v1": v1_resp, "v2": v2_resp}
+
+
+# ════════════════════════════════════════════════════════════════════
+# V2 — Cold-start con múltiples juegos favoritos (POST)
+# ════════════════════════════════════════════════════════════════════
+@app.post("/v2/cold-start/favoritos", tags=["v2 — cold start"])
+def v2_cold_start_favoritos(body: FavoritosRequest):
+    """[v2 cold-start] Recomendación a partir de hasta 5 juegos favoritos.
+
+    Calcula el centroide (promedio) de los vectores TF-IDF de los juegos
+    seleccionados y recomienda los más similares al perfil resultante.
+    """
+    indices_validos = []
+    juegos_ref = []
+    for item_id in body.item_ids:
+        idx = id_to_idx.get(item_id)
+        if idx is not None:
+            indices_validos.append(idx)
+            juegos_ref.append(
+                {"item_id": item_id, "nombre": id_to_nombre.get(item_id, "")}
+            )
+
+    if not indices_validos:
+        raise HTTPException(
+            404, "Ninguno de los item_ids proporcionados existe en el catálogo."
+        )
+
+    vectores = matriz_tfidf[indices_validos]
+    centroide = np.asarray(vectores.mean(axis=0)).flatten()
+
+    recs = recomendar_desde_vector(
+        vector_consulta=centroide,
+        matriz_tfidf=matriz_tfidf,
+        idx_to_id=idx_to_id,
+        id_to_nombre=id_to_nombre,
+        top_n=body.top_n,
+        excluir=set(body.item_ids),
+        aplicar_filtro_dlc=True,
+    )
+    return {
+        "version": "v2",
+        "estrategia": "favoritos_multiple",
+        "juegos_referencia": juegos_ref,
+        "recomendaciones": recs,
+    }
+
+
+# ════════════════════════════════════════════════════════════════════
+# Archivos estáticos — Frontend
+# ════════════════════════════════════════════════════════════════════
+_frontend_dir = Path(__file__).parent / "frontend"
+if _frontend_dir.is_dir():
+    app.mount("/app", StaticFiles(directory=_frontend_dir, html=True), name="frontend")

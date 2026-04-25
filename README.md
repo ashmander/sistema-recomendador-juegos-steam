@@ -61,20 +61,33 @@ uv sync
 
 ### Generar los artefactos del modelo
 
-Antes de levantar la API hay que entrenar el modelo y generar los artefactos
-que la API carga en memoria al arrancar. Esto se hace ejecutando los
-notebooks **una sola vez**:
+La API depende de un conjunto de artefactos precomputados (matrices, índices
+y rankings) que se generan al ejecutar los notebooks. **Si clonas el repositorio,
+los artefactos ya están incluidos** y no necesitas regenerarlos: puedes saltar
+directamente a levantar la API.
 
-```bash
-uv run jupyter lab
-```
+Si por el contrario deseas reentrenar el modelo desde cero o experimentar con
+cambios, debes:
 
-Y dentro de Jupyter, ejecutar:
+**1. Descargar los datasets originales.** Los archivos no se incluyen en el
+repositorio porque su tamaño excede los límites de Git. Se obtienen desde la
+fuente oficial (ver sección **Referencias del Dataset**), se convierten a
+formato parquet y se colocan en una carpeta `data/` en la raíz del proyecto.
+Si la carpeta no existe, créala manualmente.
 
-1. `sistema_recomendacion.ipynb` (versión 1, baseline) — opcional.
-2. `sistema_recomendacion_v2.ipynb` (versión 2, con todas las mejoras) — **requerido**.
+**2. Ejecutar los notebooks.** Para abrir y ejecutar los archivos `.ipynb`
+desde VS Code es necesario tener instalada la extensión oficial de **Jupyter**
+(publicada por Microsoft) en el marketplace. Una vez instalada, VS Code permite
+ejecutar las celdas seleccionando el intérprete del entorno virtual del proyecto.
 
-Esto crea la carpeta `artifacts/` con los siguientes archivos:
+Los notebooks a ejecutar son:
+
+1. `sistema_recomendacion.ipynb` (versión 1, baseline) — *opcional*, sirve
+   como referencia del proceso evolutivo del modelo.
+3. `sistema_recomendacion_v2.ipynb` (versión 2, modelo final) — **requerido**
+   para generar los artefactos que consume la API.
+
+Al finalizar la ejecución se crea la carpeta `artifacts/` con los siguientes archivos:
 
 | Artefacto | Descripción |
 |-----------|-------------|

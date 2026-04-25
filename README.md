@@ -1,8 +1,49 @@
 # 🎮 Sistema Recomendador de Videojuegos — Steam
 
-Sistema de recomendación de videojuegos sobre la plataforma Steam, basado en
-filtrado por contenido (TF-IDF + similitud de coseno) con dos versiones del
-modelo expuestas en paralelo a través de una API REST construida con FastAPI.
+## 👥 Integrantes
+
+| Nombre                 |
+| ---------------------- |
+| Andrés Felipe González |
+| William Suaza          |
+| Camilo Camero          |
+
+**Asignatura:** Introducción al Diseño de Sistemas Recomendadores  
+**Programa:** Maestría en Inteligencia Artificial
+
+---
+
+## 🌐 Aplicación Web
+
+> **Acceso directo:** [https://wills777-sistemarecomendador.hf.space/app/](https://wills777-sistemarecomendador.hf.space/app/)
+
+La aplicación está desplegada gratuitamente en Hugging Face Spaces con Docker.
+
+---
+
+## 🧩 Conceptos Técnicos Aplicados
+
+El proyecto integra los siguientes conceptos del campo de sistemas
+recomendadores:
+
+| Concepto                                          | Descripción y aplicación en el proyecto                                                                                             |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Filtrado Basado en Contenido**                  | Estrategia principal: cada juego se representa por sus metadatos textuales y se recomienda en función de la similitud de contenido. |
+| **TF-IDF (Term Frequency–Inverse Document Freq)** | Vectorización del catálogo de juegos a partir de tags, specs y developer. Penaliza tokens genéricos y premia tokens distintivos.    |
+| **Similitud de Coseno**                           | Métrica para comparar vectores de juegos y perfiles de usuario en el espacio TF-IDF. Se calcula on-demand para cada consulta.       |
+| **Centroide Ponderado (User Profile)**            | V2 construye el perfil del usuario como promedio ponderado (por log-playtime) de todos sus juegos, capturando el gusto agregado.    |
+| **Feedback Implícito**                            | Uso de `playtime_forever` como señal de preferencia en ausencia de ratings explícitos.                                              |
+| **Suavizado Logarítmico del Playtime**            | `log(1 + playtime)` para atenuar outliers extremos en el feedback implícito (10,000h vs 100h → ~2× en vez de 100×).                 |
+| **Feature Engineering con Pesos**                 | Asignación de pesos diferenciados a cada tipo de metadato: tags ×3, developer ×2, specs ×1, genres ×0 (redundante según Jaccard).   |
+| **Análisis de Solapamiento (Jaccard)**            | Estudio de la redundancia entre `tags` y `genres`: el 98% de juegos tienen sus géneros contenidos como tags, justificando peso 0.   |
+| **Cold-Start (Arranque en Frío)**                 | Tres estrategias para usuarios nuevos sin historial: popularidad global, intereses textuales y selección de juegos favoritos.       |
+| **Estratificación por Género**                    | Listados balanceados que toman K juegos por cada género para romper el sesgo de popularidad y garantizar diversidad.                |
+| **Filtro Anti-DLC (Post-procesamiento)**          | Heurística en dos niveles (nombre contenido + palabras clave DLC) para excluir contenido descargable del top de recomendaciones.    |
+| **Sesgo de Popularidad**                          | Identificado y mitigado parcialmente con estratificación por género y filtro anti-DLC.                                              |
+| **Burbuja de Filtro**                             | Limitación inherente del content-based. Se propone MMR como mejora futura.                                                          |
+| **Sesgo de Selección (Geográfico)**               | Dataset exclusivamente australiano; limita la generalización global.                                                                |
+| **Sesgo de Exposición**                           | Juegos con más visibilidad en la tienda acumulan más playtime, confundiendo exposición con preferencia.                             |
+| **Evaluación Cualitativa (A/B lado a lado)**      | Comparativo que muestra V1 vs V2 para un mismo usuario, permitiendo inspección visual de las diferencias.                           |
 
 ---
 
@@ -82,8 +123,8 @@ ejecutar las celdas seleccionando el intérprete del entorno virtual del proyect
 
 Los notebooks a ejecutar son:
 
-1. `sistema_recomendacion.ipynb` (versión 1, baseline) — _opcional_, sirve
-   como referencia del proceso evolutivo del modelo.
+1. `sistema_recomendacion_content_based.ipynb` (versión 1, baseline) —
+   _opcional_, sirve como referencia del proceso evolutivo del modelo.
 2. `sistema_recomendacion_v2.ipynb` (versión 2, modelo final) — **requerido**
    para generar los artefactos que consume la API.
 
@@ -223,6 +264,8 @@ deploy/
 
 ## 🌐 Aplicación Web
 
+> **Acceso en línea:** [https://wills777-sistemarecomendador.hf.space/app/](https://wills777-sistemarecomendador.hf.space/app/)
+
 La aplicación web es un frontend multi-página construido con **HTML, JavaScript
 vanilla (módulos ES6) y Tailwind CSS (CDN)**. Consume directamente la API REST
 para demostrar todas las capacidades del sistema recomendador de forma visual
@@ -230,7 +273,7 @@ e interactiva.
 
 ### Características generales
 
-- **5 páginas** independientes con navegación compartida.
+- **6 páginas** independientes con navegación compartida.
 - **Sin frameworks** (React, Vue, etc.) ni herramientas de build (Vite, Webpack).
 - **Diseño responsive** con Tailwind CSS — se adapta de 1 a 4 columnas.
 - **Tema oscuro** estilo Steam (fondo gris oscuro, acentos en índigo).
@@ -241,6 +284,39 @@ e interactiva.
   (`js/components.js`).
 
 ### Páginas de la aplicación
+
+#### 0. Presentación (`/app/presentacion.html`)
+
+Página de **presentación académica** del proyecto. Resume de forma visual y
+estructurada todo el trabajo realizado, pensada para exposición en clase.
+
+**Contenido (8 secciones):**
+
+1. **Cabecera** con autores, asignatura y fuente del dataset.
+2. **Contexto del problema** — dominio (Steam), parálisis de elección y
+   solución propuesta.
+3. **Usuarios e ítems** — descripción de los datos: ~88K usuarios australianos,
+   ~2K juegos modelables, features usadas (tags ×3, developer ×2, specs ×1,
+   genres desactivado).
+4. **Estrategia de recomendación** — tabla comparativa Content-Based vs
+   Collaborative Filtering con justificación de la elección.
+5. **Arquitectura del sistema** — diagrama visual del pipeline completo
+   (fuentes → preprocesamiento → TF-IDF → perfil V1/V2 → motor coseno →
+   post-procesamiento → Top-N) y listado de los 8 módulos de `src/utils/`.
+6. **Problema de arranque en frío** — análisis de cold-start de usuarios
+   (sí aplica) vs ítems (no aplica) y las 3 estrategias implementadas.
+7. **Evolución V1 → V2** — tabla comparativa de las mejoras en perfil,
+   diversidad, cold-start, exploración y performance.
+8. **Análisis de sesgos** — 4 sesgos identificados (popularidad, burbuja de
+   filtro, selección geográfica, exposición) con mitigaciones aplicadas
+   (estratificación, log-playtime, filtro anti-DLC) y propuestas (MMR,
+   modelo híbrido).
+9. **Demo interactiva** — 4 tarjetas de navegación directa a las páginas
+   funcionales.
+
+**Endpoints consumidos:** Ninguno (contenido estático).
+
+---
 
 #### 1. Inicio (`/app/`)
 
@@ -395,6 +471,7 @@ de un juego específico en el espacio TF-IDF.
 
 ```
 frontend/
+├── presentacion.html     # Presentación académica del proyecto
 ├── index.html            # Página de inicio (landing + stats + navegación)
 ├── usuario.html          # Recomendaciones personalizadas (comparación v1 vs v2)
 ├── nuevo-usuario.html    # Cold-start con selección múltiple de juegos
@@ -403,6 +480,7 @@ frontend/
 └── js/
     ├── api.js            # Cliente HTTP compartido (wrapper de fetch)
     ├── components.js     # Componentes UI reutilizables (navbar, tarjetas, loading)
+    ├── presentacion.js   # Lógica de presentacion.html (contenido estático)
     ├── index.js          # Lógica de index.html
     ├── usuario.js        # Lógica de usuario.html
     ├── nuevo-usuario.js  # Lógica de nuevo-usuario.html
@@ -774,7 +852,7 @@ proyecto/
 ├── pyproject.toml
 ├── Dockerfile                           # Build Docker (compatible con HF Spaces)
 ├── main.py                              # API FastAPI (v1 + v2 unificados)
-├── sistema_recomendacion.ipynb          # Notebook v1 (baseline)
+├── sistema_recomendacion_content_based.ipynb  # Notebook v1 (baseline)
 ├── sistema_recomendacion_v2.ipynb       # Notebook v2 (modelo mejorado)
 │
 ├── data/                                # Datasets crudos
@@ -795,6 +873,7 @@ proyecto/
 │   └── .dockerignore                    # Exclusiones para el build en HF
 │
 ├── frontend/                            # Aplicación web (archivos estáticos)
+│   ├── presentacion.html                # Presentación académica del proyecto
 │   ├── index.html                       # Landing page + stats + navegación
 │   ├── usuario.html                     # Comparación v1 vs v2 por usuario
 │   ├── nuevo-usuario.html               # Cold-start: selección de juegos
@@ -803,6 +882,7 @@ proyecto/
 │   └── js/
 │       ├── api.js                       # Cliente HTTP compartido
 │       ├── components.js                # Componentes UI reutilizables
+│       ├── presentacion.js              # Contenido de la presentación académica
 │       ├── index.js                     # Lógica de landing
 │       ├── usuario.js                   # Lógica de comparación v1 vs v2
 │       ├── nuevo-usuario.js             # Lógica de cold-start

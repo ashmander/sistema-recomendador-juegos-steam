@@ -191,6 +191,7 @@ El script automáticamente:
 4. Hace commit y push al Space.
 
 Al hacer push pedirá credenciales:
+
 - **Username:** tu usuario de Hugging Face.
 - **Password:** el token de acceso con permisos de escritura.
 
@@ -202,12 +203,12 @@ automáticamente (~3-5 minutos). El progreso se puede monitorear en la pestaña
 
 Cuando el build termine, la aplicación estará disponible en:
 
-| Recurso            | URL                                                                    |
-| ------------------ | ---------------------------------------------------------------------- |
-| **Aplicación Web** | `https://<USUARIO>-<SPACE>.hf.space/app/`                              |
-| **Swagger UI**     | `https://<USUARIO>-<SPACE>.hf.space/docs`                              |
-| **API REST**       | `https://<USUARIO>-<SPACE>.hf.space/`                                  |
-| **Panel del Space**| `https://huggingface.co/spaces/<USUARIO>/<SPACE>`                      |
+| Recurso             | URL                                               |
+| ------------------- | ------------------------------------------------- |
+| **Aplicación Web**  | `https://<USUARIO>-<SPACE>.hf.space/app/`         |
+| **Swagger UI**      | `https://<USUARIO>-<SPACE>.hf.space/docs`         |
+| **API REST**        | `https://<USUARIO>-<SPACE>.hf.space/`             |
+| **Panel del Space** | `https://huggingface.co/spaces/<USUARIO>/<SPACE>` |
 
 ### Estructura del directorio `deploy/`
 
